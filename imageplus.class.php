@@ -38,11 +38,14 @@ class ImagePlus extends Image {
 	var $img;     # image resource
 	var $x = 100;
 	var $y = 100;
-	var $bgcolor   = 0xFFFFFF;
-	var $antialias = true;
-	var $fontfile = 'fonts/arialblack.ttf';
-	var $selected = false; // active selection flag
+	var $antialias   = true;
+	var $fontfile    = 'fonts/arialblack.ttf';
+	var $size        = 12;
+	var $line_height = 14;
+	var $selected    = false; // active selection flag
 	var $copy;
+	var $color       = 0; // black.
+	var $bgcolor     = 0xFFFFFF; // white.
 	var $color_list = array(
 		'black'   => 0x000000,
 		'silver'  => 0xC0C0C0,
@@ -96,14 +99,34 @@ class ImagePlus extends Image {
 		imagettftext($this->img, (float) $size, $angle, (int) $x, (int) $y, $color, $this->fontfile, $text);
 	}
 	
-	// -- textbox($size=12, $angle=0, $text) Todo: merge this with ttsize() below
-	function textbox($size=12, $angle=0, $text) {
-		return imageftbbox($size, $angle, $this->fontfile, $text);
+	// -- textbox($text, $x, $y, $width, $size=12, $color=0)
+	function textbox($text, $x, $y, $width, $size=12, $color=0) {
+		$lines = explode("\n", trim($text));
+		$line_nr = 0;
+		foreach ($lines as $i => $line) {
+			$subline = $subline_new = '';
+			foreach (explode(' ', $line) as $word) {
+				$subline_new .= ($subline?' ':'') . $word;
+				$res = imagettfbbox((float) $size, 0, $this->fontfile, $subline_new);
+				$subline_width = $res[2]-$res[0];
+				if ($subline_width >= $width) { // derp!
+					$this->tttext($subline, $x, $y + $line_nr * $this->line_height, $color, $size);
+					$line_nr++;
+					$subline_new = $word;
+				}else{
+					$subline = $subline_new;
+				}
+			}
+			// trailing word(s).
+			$this->tttext($subline_new, $x, $y + $line_nr * $this->line_height, $color, $size);
+			$line_nr++;
+		}
+		return $line_nr * $this->line_height;
 	}
 	
-	// -- ttsize ($text, $size=12, $full=0)
-	function ttsize ($text, $size=12, $full=0) {
-		$res = imagettfbbox((float) $size, 0, $this->fontfile, $text);
+	// -- ttsize ($text, $size=12, $full=0, $angle=0)
+	function ttsize ($text, $size=12, $full=0, $angle=0) {
+		$res = imagettfbbox((float) $size, $angle, $this->fontfile, $text);
 		if ($full) return $res;
 		return array($res[2]-$res[0], $res[1]-$res[7]);
 	}
@@ -250,13 +273,15 @@ class ImagePlus extends Image {
 [2008-12-17 11:42:36] experimenting with $coords vs "$x, $y, $x2, $y2, .." [*1]
 [2008-12-17 11:38:42] set alpha blending is true by default
 
+Todo: draw($format) for gif, jpg etc? Set default jpeg compression property.
+Todo: add possibility to use different types of fonts (postscript, freetype, ..)
 Todo: add function head comments, update f list, etc
 Todo: add some helper methods to deal with alpha stuff ("60% red")
-Todo: some of these methods are getting too many optional arguments.. pass assoc array with defaults ('foo'=>$this->foo, or 'foo'=>$this->settings['foo']) in the function body?
+Todo: some of these methods are getting too many optional arguments.. pass assoc array with defaults ('foo'=>$this->foo, or
+      'foo'=>$this->settings['foo']) in the function body?
 Todo: select/deselect is nice. Next up: layers?
-Todo: draw($format) for gif, jpg etc?
-Todo: Catch errors, print them as text in the image. If no image can be created, create one anyway large enough to hold the error text. If the error-image can't be
-      created, cry and stamp your feet.
+Todo: Catch errors, print them as text in the image. If no image can be created, create one anyway large enough to hold the error text. If the
+      error-image can't be created, cry and stamp your feet.
 
 ------------------------------------------
 

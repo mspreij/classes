@@ -5,11 +5,10 @@
  * Version 0.01a - Released May 5th, 2005
  * 
  * If you make modifications that may be useful to others, please send 
- * them to <j |at| jgdataworks.com>.
+ * them to <j |at| jgdataworks.com>. (<-- that is PROBABLY outdated.)
  * --
  * [2006-08-28 23:39:54]
- * Modified by Maarten Spreij (gmail.com@mspreij) - http://mechintosh.com/
- * Version 0.1a (why not)
+ * Modified by Maarten Spreij (gmail.com@mspreij) - http://mech.cx/
  * Last update: [2009-04-06 14:12:10]
  * ---------------------------------------
  * 
@@ -194,8 +193,8 @@ class Image {
 		return true;
 	}
 	
-	#__________________
-	# getxy($side='') /
+	//__________________
+	// getxy($side='') /
 	function getxy($side='') {
 		if (strtolower($side) == 'x') return imagesx($this->img);
 		if (strtolower($side) == 'y') return imagesy($this->img);
@@ -284,6 +283,7 @@ class Image {
 }
 
 /* -- Log --------------------------------
+
 [2009-04-06 14:12:10] added __clone() method.
 [2006-12-12 14:23:37] getxy() -> getxy($side=''), so it can return either x or y as well
 [2006-09-01 00:56:45] w00t. scaling and stretching and such worked out.
@@ -292,8 +292,10 @@ class Image {
          for it if both width and height were specified, which atm only the calc_sizes function can "know". So it might
          just do $this->stretch_check = true;
 
-Todo: Might want to clean up code a little, rename variables, // instead of # and such.
+Todo: the constructor throws warnings before trying to interpret the input as image data. do something intelligent with
+      is_readable, keeping http links in mind (will it download the image twice? pls check)
 Todo: cache x,y dimensions of image in getxy(), reset after scaling.
+Todo: Might want to clean up code a little, rename variables, // instead of # and such.
 ------------------------------------------
 Done: 
 - Return statements in constructor, those should not be needed/wanted, right? Right

@@ -16,7 +16,8 @@ class recobject {
                                                            as $function, too.
  * run_hooks($hook, &$data)                             -- Called by various functions, allows "extending" them without extending the class
  * delete()                                             -- Just deletes the record. Extend class to deal with subrecords, files etc
- * get_list($options='')                                -- 
+ * get_list($options='')                                -- what it says, returns array. Also runs update_object hook on each item (as of this writing)
+ * styledText($string, $color='#000')                   -- "meh"
  * reset()                                              -- returns the object to a pre-$id state
  * 
 **/
@@ -57,20 +58,20 @@ class recobject {
 		global $messages;
 		if ($id) $this->id = $id;
 		if (! $this->id) {
-			$messages[] = styledText("Can't select data, no id given.", 'red');
+			$messages[] = $this->styledText("Can't select data, no id given.", 'red');
 			return false;
 		}
 		if (is_array($this->id)) {
 			$sql = "SELECT id, `". join('`, `', array_keys($this->fields)) ."` FROM $this->table WHERE ";
 			foreach ($this->id as $key => $val) {
-				$sql .= "`".mres($key)."` = '".mres($val)."' AND ";
+				$sql .= "`".mysql_real_escape_string($key)."` = '".mysql_real_escape_string($val)."' AND ";
 			}
 			$sql = substr($sql, 0, -4);
 		}else{
 			$sql = "SELECT `". join('`, `', array_keys($this->fields)) ."` FROM $this->table WHERE id = '$this->id'";
 		}
 		if ($this->clause) $sql .= $this->clause_string; // clause
-		if ($this->debug) echo styledText($sql.'<br>', 'blue');
+		if ($this->debug) echo $this->styledText($sql.'<br>', 'blue');
 		if ($res = mysql_query($sql)) {
 			if ($row = mysql_fetch_assoc($res)) {
 				if (is_array($this->id)) $this->id = array_shift($row);
@@ -78,12 +79,12 @@ class recobject {
 				return $this->fields; // [2010-12-20 17:03:59]
 			}else{
 				$this->id = false; // the query worked, clearly there is No Such Record.
-				$messages[] = styledText(get_class($this) .": Record not found..", 'red');
+				$messages[] = $this->styledText(get_class($this) .": Record not found..", 'red');
 				return false;
 			}
 			return $row;
 		}else{
-			$messages[] = styledText("Select error: ". mysql_error(), 'red');
+			$messages[] = $this->styledText("Select error: ". mysql_error(), 'red');
 			return false;
 		}
 	}
@@ -97,7 +98,7 @@ class recobject {
 			foreach($this->clause as $field => $value) $this->clause_string .= " AND `$field` = '".mysql_real_escape_string($value)."'";
 			return true;
 		}else{
-			$messages[] = styledText('recobject class error, clause property should be a (non-empty) array.<br>', 'red');
+			$messages[] = $this->styledText('recobject class error, clause property should be a (non-empty) array.<br>', 'red');
 			return false;
 		}
 	}
@@ -112,20 +113,20 @@ class recobject {
 			$this->run_hooks('pre_insert', $data);
 			// Validate
 			if (! $this->validate($data, 'insert')) {
-				$messages[] = styledText("Failed to insert, invalid data: ". $this->validation_error, '#f80');
+				$messages[] = $this->styledText("Failed to insert, invalid data: ". $this->validation_error, '#f80');
 				return False;
 			}
 			if ($this->clause) $data = array_merge($data, $this->clause); // clause
 			foreach ($data as $key => $value) {
 				if (is_array($value)) {
 					$data[$key] = json_encode($value);
-					if ($this->show_errors > 1) $messages[] = styledText("Warning: ->insert(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
+					if ($this->show_errors > 1) $messages[] = $this->styledText("Warning: ->insert(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
 				}
 			}
 			$sql = "
 				INSERT INTO $this->table (`". join('`, `', array_keys($data)) ."`)
 				VALUES ('". join("', '", array_map('mysql_real_escape_string', $data)) ."')";
-			if ($this->debug) echo styledText($sql.'<br>', 'green', 'p');
+			if ($this->debug) echo $this->styledText($sql.'<br>', 'green', 'p');
 			if ($res = mysql_query($sql)) {
 				$messages[] = $this->record_created;
 				$this->id = mysql_insert_id();
@@ -134,12 +135,12 @@ class recobject {
 				$this->run_hooks('post_insert', $data);
 				return $this->id;
 			}else{
-				$messages[] = styledText("Insert error: ". mysql_error(), 'red');
+				$messages[] = $this->styledText("Insert error: ". mysql_error(), 'red');
 				writelog("insert error:  $sql\n\n". mysql_error());
 				return false;
 			}
 		}else{
-			$messages[] = styledText("No data", 'red');
+			$messages[] = $this->styledText("No data", 'red');
 			return false;
 		}
 	}
@@ -154,20 +155,20 @@ class recobject {
 			$this->run_hooks('pre_update', $data);
 			// Validate
 			if (! $this->validate($data, 'update')) {
-				$messages[] = styledText("Failed to update, validation error: ". $this->validation_error, '#f80');
+				$messages[] = $this->styledText("Failed to update, validation error: ". $this->validation_error, '#f80');
 				return False;
 			}
 			$sql = "UPDATE $this->table SET\n";
 			foreach($data as $key => $value) {
 				if (is_array($value)) {
 					$value = json_encode($value);
-					if ($this->show_errors > 1) $messages[] = styledText("Warning: ->update(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
+					if ($this->show_errors > 1) $messages[] = $this->styledText("Warning: ->update(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
 				}
 				$sql .= "`$key` = '". mysql_real_escape_string($value) ."', ";
 			}
 			$sql = substr($sql, 0, -2) ." WHERE id = '$this->id'";
 			if ($this->clause) $sql .= $this->clause_string; // clause
-			if ($this->debug) echo styledText($sql.'<br>', '#C60');
+			if ($this->debug) echo $this->styledText($sql.'<br>', '#C60');
 			if ($res = mysql_query($sql)) {
 				$messages[] = $this->record_updated;
 				$data = $this->select();
@@ -175,11 +176,11 @@ class recobject {
 				$this->run_hooks('post_update', $data);
 				return true;
 			}else{
-				$messages[] = styledText("Update error: ". mysql_error(), 'red');
+				$messages[] = $this->styledText("Update error: ". mysql_error(), 'red');
 				return false;
 			}
 		}else{
-			$messages[] = styledText("No data", 'red');
+			$messages[] = $this->styledText("No data", 'red');
 			return false;
 		}
 	}
@@ -223,9 +224,9 @@ class recobject {
 		// that's the meat of it; now we'll just check if it was useful, and throw warnings/errors otherwise.
 		if (is_string($function)) {
 			if (! function_exists($function)) {
-				if ($this->show_errors > 1) $messages[] = styledText("Warning: hook function '$function' is not defined!<br />", '#f80');
-			}elseif($name == 'update_object') {
-				if ($this->id) $this->select(); // re-fetches and runs hook on that (->select() calls ->update_object() which calls ->run_hooks()).
+				if ($this->show_errors > 1) {
+					$messages[] = styledText("Warning: hook function '$function' is not defined!<br />", '#f80');
+				}
 			}
 		}elseif(is_array($function)) {
 			if (count($function)==2) {
@@ -241,6 +242,11 @@ class recobject {
 			$messages[] = styledText(get_class($this) ."->hook() did not expect to get a function of type '". gettype($function) ."', there. Try string or array (for methods).", '#f80');
 			return false; // that made no sense.
 		}
+		// Special case: hooks are only added once the record is initialized - and selected. update_object() is called inside the select method.
+		// So, we re-fetch it and let it run the hook stuff.
+		if ($name == 'update_object') {
+			if ($this->id) $this->select();
+		}
 	}
 	
 	//___________________________ [2009-11-22 01:20:09]
@@ -253,17 +259,17 @@ class recobject {
 					if (function_exists($function)) {
 						$data = $function($data);
 					}else {
-						$messages[] = styledText("Error: could not run hook function '$function': not defined.<br />", 'red');
+						$messages[] = $this->styledText("Error: could not run hook function '$function': not defined.<br />", 'red');
 					}
 				}elseif(is_array($function)) {
 					if (count($function)==2) {
 						if (method_exists($function[0], $function[1])) {
 							$data = $function[0]->$function[1]($data);
 						}else{
-							$messages[] = styledText("Error: could not run hook method '". $function[1] ."' from Class '".(is_string($function[0]) ? $function[0] : get_class($function[0]))."'!<br />", '#f80');
+							$messages[] = $this->styledText("Error: could not run hook method '". $function[1] ."' from Class '".(is_string($function[0]) ? $function[0] : get_class($function[0]))."'!<br />", '#f80');
 						}
 					}else{
-						$messages[] = styledText(get_class($this) ."->run_hooks() parameter error: [object,method] array should have exactly 2 items.", '#f80');
+						$messages[] = $this->styledText(get_class($this) ."->run_hooks() parameter error: [object,method] array should have exactly 2 items.", '#f80');
 					}
 				}elseif(is_object($function) && strtolower(get_class($function)) == 'closure') {
 					$data = $function($data);
@@ -279,7 +285,7 @@ class recobject {
 		$post_delete_data = '';
 		$sql = "DELETE FROM $this->table WHERE id = '$this->id'";
 		if ($this->clause) $sql .= $this->clause_string;
-		if ($this->debug) echo styledText($sql, 'purple');
+		if ($this->debug) echo $this->styledText($sql, 'purple');
 		if (isset($this->hooks['post_delete']) && $this->hooks['post_delete'] or $this->logging) {
 			$post_delete_data = fetch_row("SELECT * FROM $this->table WHERE id = '$this->id'");
 		}
@@ -325,6 +331,7 @@ class recobject {
 		if ($res = mysql_query($sql)) {
 			if (mysql_num_rows($res)) {
 				while($row = mysql_fetch_assoc($res)) {
+					$this->run_hooks('update_object', $row); // [2011-08-11 03:57:32] woah!
 					$data[] = $row;
 				}
 				// writelog(var_export($data, 1), -1);
@@ -333,9 +340,15 @@ class recobject {
 				return array(); // [2010-12-12 21:50:27]
 			}
 		}else{
-			if ($this->debug) $messages[] = styledText("List error: ". mysql_error() ."<br>\n", 'red');
+			if ($this->debug) $messages[] = $this->styledText("List error: ". mysql_error() ."\n\n$sql"."<br>\n", 'red');
 			return false;
 		}
+	}
+	
+	//_____________________________________
+	// styledText($string, $color='#000') /
+	function styledText($string, $color='#000') {
+		return "<span style='color: $color;'>$string</span>"; // christ. there. happy now?
 	}
 	
 	// "experimental"
@@ -351,6 +364,10 @@ class recobject {
 
 /* -- Log --------------------------------
 
+[2011-08-11 03:57:32] Patched get_list() to run update_object hooks on result list. /might/ just have to make this optional..
+                      Replaced mres calls with mysql_real_escape_string.
+[2011-07-29 23:18:15] Fixed hook method: update_object wouldn't re-select() if the callback function was a closure.
+[2011-07-23 14:25:11] "Added" styledText() as method to rely less on non-class functions, but jeez, we need some proper error reporting in here.
 [2011-01-09 20:53:31] Added ->validate($data, $type) & (string) property ->validation_error. ->validate($data, $type) returns true by default
 [2010-12-27 18:13:27] Added $type arg to get_data() because YOU NEVER KNOW and it turned out to be maybe useful somewhere (reverts [2010-12-01 20:07:12]).
 [2010-12-20 17:03:59] select() used to return $row, now it returns $this->fields, after update_object() has had its way with it, so that any hooks/overrides
@@ -393,7 +410,9 @@ Todo: Introduce toggles for the returning of status messages, or something.. $th
 Todo: Minimize dependencies on misc custom functions
 Todo: A "Handle act" bit might be a method, with sensible default actions and some more hooks (on_successful_update etc)
 Todo:   The optional insert() (and update()?) argument might be set with a seperate method to make this easier (then again, it'd be just as much code?)
-Todo: yet more callback hooks?
+
+Maybe: make this->fields array a stdClass object?
+Maybe: yet more callback hooks?
 
 
 Done: ->reset()
