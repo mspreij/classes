@@ -73,7 +73,10 @@ class recobject {
 		if ($this->clause) $sql .= $this->clause_string; // clause
 		if ($this->debug) echo $this->styledText($sql.'<br>', 'blue');
 		if ($res = mysql_query($sql)) {
-			if ($row = mysql_fetch_assoc($res)) {
+			if (mysql_num_rows($res) > 1) { // [2011-09-13 14:45:24]
+				$messages[] = $this->styledText(get_class($this) ."Error - More than one row match your criteria.", 'red');
+				return false;
+			}elseif ($row = mysql_fetch_assoc($res)) {
 				if (is_array($this->id)) $this->id = array_shift($row);
 				$this->update_object($row);
 				return $this->fields; // [2010-12-20 17:03:59]
@@ -84,7 +87,7 @@ class recobject {
 			}
 			return $row;
 		}else{
-			$messages[] = $this->styledText("Select error: ". mysql_error(), 'red');
+			trigger_error("Select error: ". mysql_error(), E_USER_WARNING);
 			return false;
 		}
 	}
@@ -98,7 +101,7 @@ class recobject {
 			foreach($this->clause as $field => $value) $this->clause_string .= " AND `$field` = '".mysql_real_escape_string($value)."'";
 			return true;
 		}else{
-			$messages[] = $this->styledText('recobject class error, clause property should be a (non-empty) array.<br>', 'red');
+			trigger_error('recobject class error, clause property should be a (non-empty) array,', E_USER_WARNING);
 			return false;
 		}
 	}
@@ -120,7 +123,8 @@ class recobject {
 			foreach ($data as $key => $value) {
 				if (is_array($value)) {
 					$data[$key] = json_encode($value);
-					if ($this->show_errors > 1) $messages[] = $this->styledText("Warning: ->insert(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
+					// if ($this->show_errors > 1) $messages[] = $this->styledText("Warning: ->insert(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
+					trigger_error("->insert(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", E_USER_NOTICE);
 				}
 			}
 			$sql = "
@@ -135,12 +139,12 @@ class recobject {
 				$this->run_hooks('post_insert', $data);
 				return $this->id;
 			}else{
-				$messages[] = $this->styledText("Insert error: ". mysql_error(), 'red');
+				trigger_error("Insert error: ". mysql_error(), E_USER_WARNING);
 				writelog("insert error:  $sql\n\n". mysql_error());
 				return false;
 			}
 		}else{
-			$messages[] = $this->styledText("No data", 'red');
+			$messages[] = $this->styledText("->insert: No data", 'red');
 			return false;
 		}
 	}
@@ -162,7 +166,8 @@ class recobject {
 			foreach($data as $key => $value) {
 				if (is_array($value)) {
 					$value = json_encode($value);
-					if ($this->show_errors > 1) $messages[] = $this->styledText("Warning: ->update(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
+					// if ($this->show_errors > 1) $messages[] = $this->styledText("Warning: ->update(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", '#f80');
+					trigger_error("->update(): json_encoded value for field '$key' (was an array). It's better to handle this in a get_data() hook.", E_USER_NOTICE);
 				}
 				$sql .= "`$key` = '". mysql_real_escape_string($value) ."', ";
 			}
@@ -176,11 +181,11 @@ class recobject {
 				$this->run_hooks('post_update', $data);
 				return true;
 			}else{
-				$messages[] = $this->styledText("Update error: ". mysql_error(), 'red');
+				trigger_error("Update error: ". mysql_error(), E_USER_WARNING);
 				return false;
 			}
 		}else{
-			$messages[] = $this->styledText("No data", 'red');
+			$messages[] = $this->styledText("->update: No data", 'red');
 			return false;
 		}
 	}
@@ -225,21 +230,22 @@ class recobject {
 		if (is_string($function)) {
 			if (! function_exists($function)) {
 				if ($this->show_errors > 1) {
-					$messages[] = styledText("Warning: hook function '$function' is not defined!<br />", '#f80');
+					trigger_error("Hook function '$function' is not defined (yet)!", E_USER_NOTICE);
 				}
 			}
 		}elseif(is_array($function)) {
 			if (count($function)==2) {
 				if (! method_exists($function[0], $function[1])) {
-					$messages[] = styledText("Error: hook method '". $function[1] ."' is not defined in Class '".(is_string($function[0]) ? $function[0] : get_class($function[0]))."'!<br />", '#f80');
+					trigger_error("Hook method '". $function[1] ."' is not defined in Class '".(is_string($function[0]) ? $function[0] : get_class($function[0]))."'!", E_USER_ERROR); // Blam!
 				}
 			}else{
-				$messages[] = styledText(get_class($this) ."->hook() parameter error: [object,method] array should have exactly 2 items.", '#f80');
+				trigger_error(get_class($this) ."->hook() parameter error: [object,method] array should have exactly 2 items.", E_USER_WARNING);
+				return false;
 			}
 		}elseif(is_object($function) && strtolower(get_class($function)) == 'closure'){
 			// cool?
 		}else{
-			$messages[] = styledText(get_class($this) ."->hook() did not expect to get a function of type '". gettype($function) ."', there. Try string or array (for methods).", '#f80');
+			trigger_error(get_class($this) ."->hook() did not expect to get a function of type '". gettype($function) ."', there. Try string or array (for methods).", E_USER_WARNING);
 			return false; // that made no sense.
 		}
 		// Special case: hooks are only added once the record is initialized - and selected. update_object() is called inside the select method.
@@ -247,6 +253,7 @@ class recobject {
 		if ($name == 'update_object') {
 			if ($this->id) $this->select();
 		}
+		return $this; // [2011-09-12 12:33:23] will this work?
 	}
 	
 	//___________________________ [2009-11-22 01:20:09]
@@ -259,17 +266,17 @@ class recobject {
 					if (function_exists($function)) {
 						$data = $function($data);
 					}else {
-						$messages[] = $this->styledText("Error: could not run hook function '$function': not defined.<br />", 'red');
+						trigger_error("Error: could not run hook function '$function': not defined.<br />", E_USER_ERROR);
 					}
 				}elseif(is_array($function)) {
 					if (count($function)==2) {
 						if (method_exists($function[0], $function[1])) {
 							$data = $function[0]->$function[1]($data);
 						}else{
-							$messages[] = $this->styledText("Error: could not run hook method '". $function[1] ."' from Class '".(is_string($function[0]) ? $function[0] : get_class($function[0]))."'!<br />", '#f80');
+							trigger_error("Hook method '". $function[1] ."' from Class '".(is_string($function[0]) ? $function[0] : get_class($function[0]))."' does not exist.", E_USER_ERROR);
 						}
 					}else{
-						$messages[] = $this->styledText(get_class($this) ."->run_hooks() parameter error: [object,method] array should have exactly 2 items.", '#f80');
+						trigger_error(get_class($this) ."->run_hooks() parameter error: [object,method] array should have exactly 2 items.", E_USER_NOTICE);
 					}
 				}elseif(is_object($function) && strtolower(get_class($function)) == 'closure') {
 					$data = $function($data);
@@ -340,7 +347,7 @@ class recobject {
 				return array(); // [2010-12-12 21:50:27]
 			}
 		}else{
-			if ($this->debug) $messages[] = $this->styledText("List error: ". mysql_error() ."\n\n$sql"."<br>\n", 'red');
+			trigger_error("->get_list() error: ". mysql_error() ."<br>$sql<br>\n", E_USER_WARNING);
 			return false;
 		}
 	}
@@ -364,6 +371,8 @@ class recobject {
 
 /* -- Log --------------------------------
 
+[2011-09-13 14:45:24] Updated ->select() to check for more than 1 row found, which could happen when using array(field:val) as $id
+[2011-09-12 12:19:38] Replaced bunch of $messages[]=.. with trigger_error() calls, if they are "code logic" errors.
 [2011-08-11 03:57:32] Patched get_list() to run update_object hooks on result list. /might/ just have to make this optional..
                       Replaced mres calls with mysql_real_escape_string.
 [2011-07-29 23:18:15] Fixed hook method: update_object wouldn't re-select() if the callback function was a closure.
@@ -397,22 +406,17 @@ class recobject {
 [2008-12-07 01:21:09] delete() now logs errors regardless of $this->logging
 [2008-11-15 19:37:39] Delete foreach($this->fields as $key => &$value) not working well under older PHP (I think?), rewrote.
 [2008-11-15 19:05:38] Added hook method: accepts name of method to apply in (only get_data for now), and name of [custom] function to run.
-											Custom function must accept $data and return $data in get_data(), maybe other method-custom-calls get other requirements.
+                      Custom function must accept $data and return $data in get_data(), maybe other method-custom-calls get other requirements.
 [2008-10-11 16:27:27] ->delete() now sets fields to null and $id to false on successful delete, logs on failure.
 
 
 Todo: implement parameterized SQL queries - though that might require either moving to mysqli, adding some abstraction class, or a bunch of methods that
 Todo:   wrap queries for both interfaces.
 TODO: Sort out debug vs show_errors, go through code applying correct one
-Todo: merge this with record.class.php and [meta]db.class.php to get one huge frickin class that is extendable, but simple to use (not
-Todo:   [much more] complicated then recobject class). Would like to keep: set_key, set_clause, file upload.
+Todo: Consider set_key() method, key property (key/clause, even?)
 Todo: Introduce toggles for the returning of status messages, or something.. $this->record_updated is not exactly optimal.
 Todo: Minimize dependencies on misc custom functions
-Todo: A "Handle act" bit might be a method, with sensible default actions and some more hooks (on_successful_update etc)
-Todo:   The optional insert() (and update()?) argument might be set with a seperate method to make this easier (then again, it'd be just as much code?)
-
-Maybe: make this->fields array a stdClass object?
-Maybe: yet more callback hooks?
+Todo: yet more callback hooks?
 
 
 Done: ->reset()
