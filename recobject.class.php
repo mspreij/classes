@@ -132,7 +132,7 @@ class recobject {
 				VALUES ('". join("', '", array_map('mysql_real_escape_string', $data)) ."')";
 			if ($this->debug) echo $this->styledText($sql.'<br>', 'green', 'p');
 			if ($res = mysql_query($sql)) {
-				$messages[] = $this->record_created;
+				if ($this->record_created) $messages[] = $this->record_created;
 				$this->id = mysql_insert_id();
 				$this->select();
 				if ($this->logging) writelog("Insert\n$sql", -1, 'cms');
@@ -175,7 +175,7 @@ class recobject {
 			if ($this->clause) $sql .= $this->clause_string; // clause
 			if ($this->debug) echo $this->styledText($sql.'<br>', '#C60');
 			if ($res = mysql_query($sql)) {
-				$messages[] = $this->record_updated;
+				if ($this->record_updated) $messages[] = $this->record_updated;
 				$data = $this->select();
 				if ($this->logging) writelog("Update\n$sql", -1, 'cms');
 				$this->run_hooks('post_update', $data);
@@ -371,6 +371,7 @@ class recobject {
 
 /* -- Log --------------------------------
 
+[2011-09-27 06:27:52] Only stuffing $this->record_inserted/updated in $messages if they're truthy (this mess still needs to be fixed)
 [2011-09-13 14:45:24] Updated ->select() to check for more than 1 row found, which could happen when using array(field:val) as $id
 [2011-09-12 12:19:38] Replaced bunch of $messages[]=.. with trigger_error() calls, if they are "code logic" errors.
 [2011-08-11 03:57:32] Patched get_list() to run update_object hooks on result list. /might/ just have to make this optional..
@@ -416,7 +417,7 @@ TODO: Sort out debug vs show_errors, go through code applying correct one
 Todo: Consider set_key() method, key property (key/clause, even?)
 Todo: Introduce toggles for the returning of status messages, or something.. $this->record_updated is not exactly optimal.
 Todo: Minimize dependencies on misc custom functions
-Todo: yet more callback hooks?
+Todo: more callback hooks?
 
 
 Done: ->reset()
@@ -427,5 +428,4 @@ Done: ->reset()
       And there could be other reasons..
 
 */
-
 ?>
