@@ -6,6 +6,8 @@ class recobject {
  * recobject($table, $fields, $id=0, $clause=false)     -- Constructor: string $table, array $fields, int $id, array $clause
  * select()                                             -- Fetches row, sets $this->fields items with update_object(), returns row.
  * set_clause($array)                                   -- Adds assoc array (field/value) to use in all queries [2008-02-07 12:14:44]
+ * add_clause($array)                                   -- Adds to current clause (instead of replacing like set_clause), does overwrite items if they were specified again
+ * set_clause_string()                     [protected]  -- Helper method for set/add_clause(), sets clause_string (yes, really)
  * insert($extra='')                                    -- Gets data with get_data(), inserts record, calls select() to update object, returns id or false.
  * update($extra='')                                    -- Gets data with get_data(), updates record, calls select() to update object.
  * validate($data, $type)                               -- 
@@ -35,18 +37,19 @@ class recobject {
 	var $validation_error = '';
 	
 	// -- Constructor -----------------------
-	function recobject($table, $fields, $id=0, $clause=false) {
+	function __construct($table, $fields, $id=0, $clause=false) {
 		// set debug to constant DEBUG, if any
 		if (defined('DEBUG')) $this->debug = (int) DEBUG;
 		$this->table = $table;
 		if (is_array($fields)) {
 			foreach($fields as $field) $this->fields[$field] = '';
 		}else{
-			echo '<span style="color: red;">recobject class error: $fields should be array in constructor</span><br />';
+			trigger_error('recobject class error: $fields should be array in constructor', E_USER_WARNING);
 		}
 		$this->id = $id;
+		$this->clause = array(); // init.
 		if ($clause) $this->set_clause($clause);
-		if (! ($table && $fields)) echo '<span style="color: red;">Missing table or fields in constructor</span><br />';
+		if (! ($table && $fields)) trigger_error('recobject class error: Missing table or fields in constructor', E_USER_WARNING);
 		if ($this->id) {
 			$this->select();
 		}
@@ -71,10 +74,12 @@ class recobject {
 			$sql = "SELECT `". join('`, `', array_keys($this->fields)) ."` FROM $this->table WHERE id = '$this->id'";
 		}
 		if ($this->clause) $sql .= $this->clause_string; // clause
-		if ($this->debug) echo $this->styledText($sql.'<br>', 'blue');
+		if ($this->debug) echo $this->styledText($sql."<br>\n", 'blue');
 		if ($res = mysql_query($sql)) {
 			if (mysql_num_rows($res) > 1) { // [2011-09-13 14:45:24]
-				$messages[] = $this->styledText(get_class($this) ."Error - More than one row match your criteria.", 'red');
+				// You specified an $id, I'm assuming you want a single record, but I found more.
+				// If you want to select a subset of records based on some filter, use null or false for $id and use the $clause instead.
+				trigger_error(get_class($this) ." class error: more than one row match this \$id (use \$clause to find a subset of records if that was the objective)", E_USER_ERROR);
 				return false;
 			}elseif ($row = mysql_fetch_assoc($res)) {
 				if (is_array($this->id)) $this->id = array_shift($row);
@@ -95,14 +100,39 @@ class recobject {
 	//_____________________
 	// set_clause($array) /
 	function set_clause($array) {
-		if (is_array($array)) { //  && count($array)
-			$this->clause = $array;
-			$this->clause_string = ''; // reset if it was changed
-			foreach($this->clause as $field => $value) $this->clause_string .= " AND `$field` = '".mysql_real_escape_string($value)."'";
-			return true;
-		}else{
-			trigger_error('recobject class error, clause property should be a (non-empty) array,', E_USER_WARNING);
+		if (! is_array($array)) { //  && count($array)
+			trigger_error(__CLASS__.'->set_clause() error, argument should be a (non-empty) array,', E_USER_WARNING);
 			return false;
+		}
+		$this->clause = $array;
+		$this->set_clause_string();
+		return true;
+	}
+	
+	//________________________
+	// -- add_clause($array) /
+	function add_clause($array) {
+		if (! is_array($array)) {
+			trigger_error(__CLASS__.'->add_clause() error, argument should be a (non-empty) array,', E_USER_WARNING);
+			return false;
+		}
+		foreach ($array as $key => $value) {
+			$this->clause[$key] = $value; // overwrites as needed
+		}
+		$this->set_clause_string();
+		return true;
+	}
+	
+	//______________________
+	// set_clause_string() /
+	protected function set_clause_string() {
+		$this->clause_string = ''; // resets if it was not empty
+		foreach($this->clause as $field => $value) {
+			if (is_numeric($field)) {
+				trigger_error(__CLASS__."->add_clause(): I'm pretty sure table column names shouldn't be numeric (".var_export($field, 1)."). If your query breaks, this caused it.",
+				              E_USER_WARNING);
+			}
+			$this->clause_string .= " AND `$field` = '".mysql_real_escape_string($value)."'";
 		}
 	}
 	
@@ -130,7 +160,7 @@ class recobject {
 			$sql = "
 				INSERT INTO $this->table (`". join('`, `', array_keys($data)) ."`)
 				VALUES ('". join("', '", array_map('mysql_real_escape_string', $data)) ."')";
-			if ($this->debug) echo $this->styledText($sql.'<br>', 'green', 'p');
+			if ($this->debug) echo $this->styledText($sql."<br>\n", 'green', 'p');
 			if ($res = mysql_query($sql)) {
 				if ($this->record_created) $messages[] = $this->record_created;
 				$this->id = mysql_insert_id();
@@ -173,7 +203,7 @@ class recobject {
 			}
 			$sql = substr($sql, 0, -2) ." WHERE id = '$this->id'";
 			if ($this->clause) $sql .= $this->clause_string; // clause
-			if ($this->debug) echo $this->styledText($sql.'<br>', '#C60');
+			if ($this->debug) echo $this->styledText($sql."<br>\n", '#C60');
 			if ($res = mysql_query($sql)) {
 				if ($this->record_updated) $messages[] = $this->record_updated;
 				$data = $this->select();
@@ -292,7 +322,7 @@ class recobject {
 		$post_delete_data = '';
 		$sql = "DELETE FROM $this->table WHERE id = '$this->id'";
 		if ($this->clause) $sql .= $this->clause_string;
-		if ($this->debug) echo $this->styledText($sql, 'purple');
+		if ($this->debug) echo $this->styledText($sql."<br>\n", 'purple');
 		if (isset($this->hooks['post_delete']) && $this->hooks['post_delete'] or $this->logging) {
 			$post_delete_data = fetch_row("SELECT * FROM $this->table WHERE id = '$this->id'");
 		}
@@ -334,7 +364,7 @@ class recobject {
 		if (isset($orderby)) $sql .= " ORDER BY $orderby";
 		if (isset($limit))   $sql .= " LIMIT $limit";
 		// now execute it.
-		// echo $sql;
+		if ($this->debug) echo $this->styledText($sql."<br>\n", 'blue');
 		if ($res = mysql_query($sql)) {
 			if (mysql_num_rows($res)) {
 				while($row = mysql_fetch_assoc($res)) {
@@ -371,6 +401,9 @@ class recobject {
 
 /* -- Log --------------------------------
 
+[2011-10-29 09:10:59] get_list() echoes $sql if $this->debug
+[2011-10-28 03:49:23] Added add_clause() and set_clause_string()
+[2011-10-27 07:21:10] Init'ing ->clause to empty array in constructor. Playing with ->add_clause() in child classes, should add some day.
 [2011-09-27 06:27:52] Only stuffing $this->record_inserted/updated in $messages if they're truthy (this mess still needs to be fixed)
 [2011-09-13 14:45:24] Updated ->select() to check for more than 1 row found, which could happen when using array(field:val) as $id
 [2011-09-12 12:19:38] Replaced bunch of $messages[]=.. with trigger_error() calls, if they are "code logic" errors.
@@ -417,7 +450,10 @@ TODO: Sort out debug vs show_errors, go through code applying correct one
 Todo: Consider set_key() method, key property (key/clause, even?)
 Todo: Introduce toggles for the returning of status messages, or something.. $this->record_updated is not exactly optimal.
 Todo: Minimize dependencies on misc custom functions
-Todo: more callback hooks?
+Todo: have hook() accept optional arguments to pass to the callback function (as 3rd arg, not array, that's already used and adding more items to that would
+      get /confusing/). The ->hooks array would require sub-arrays instead of function names - which it already /does/ for methods.. will *they* ever need
+      arguments? Or make sub-arrays the standard, [function, [args]] where function can be a sub-sub-array for methods. Also, check where other callbacks might
+      come in handy.
 
 
 Done: ->reset()
@@ -428,4 +464,5 @@ Done: ->reset()
       And there could be other reasons..
 
 */
+
 ?>
