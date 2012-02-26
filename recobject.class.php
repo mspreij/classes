@@ -83,7 +83,7 @@ class recobject {
 				trigger_error(get_class($this) ." class error: more than one row match this \$id (use \$clause to find a subset of records if that was the objective)", E_USER_ERROR);
 				return false;
 			}elseif ($row = mysql_fetch_assoc($res)) {
-				if (is_array($this->id)) $this->id = array_shift($row);
+				if (is_array($this->id)) $this->id = (int) array_shift($row);
 				$this->update_object($row);
 				return $this->fields; // [2010-12-20 17:03:59]
 			}else{
