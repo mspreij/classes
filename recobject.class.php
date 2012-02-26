@@ -462,7 +462,9 @@ class recobject {
                       Custom function must accept $data and return $data in get_data(), maybe other method-custom-calls get other requirements.
 [2008-10-11 16:27:27] ->delete() now sets fields to null and $id to false on successful delete, logs on failure.
 
-
+TODO: ->update() should remove keys from $extra (and $data) that are part of the ->clause; if the user_id is part of clause, this would allow "inserting"
+      records for other users, for example. Check insert() too.
+Todo: The part of hook() that checks the callback could use some is_callable(). <-- useful standard function.
 Todo: finish ->set(), clause thing: the override will update the record for anything not in the clause, if there's anything left. But if those keys
       that /are/ in the clause as well have the /same values/, update without the override (and throw a notice or something).
       Also also: check add_clause() doesn't invalidate the current record, if any. Yell loudly if that happens.
