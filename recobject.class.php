@@ -296,10 +296,9 @@ class recobject {
 			trigger_error(get_class($this) ."->hook() did not expect to get a function of type '". gettype($function) ."', there. Try string or array (for methods).", E_USER_WARNING);
 			return false; // that made no sense.
 		}
-		// Special case: hooks are only added once the record is initialized - and selected. update_object() is called inside the select method.
-		// So, we re-fetch it and let it run the hook stuff.
-		if ($name == 'update_object') {
-			// if ($this->id) $this->select();      // <-- that one re-queries, but we already have all the data (maybe?) so that shouldn't be needed. [2011-11-08 21:55:33]
+		// Special case: this->hook() only runs once the object is initialized, and the data selected. update_object() only runs inside the select method, so any hooks for it would
+		// be too late. So those, we run now.
+		if ($name == 'update_object' and $this->id) { // only run if there is a record, too. [2012-07-29 14:55:29]
 			$this->run_hooks($name, $this->fields); // Todo: prove this works the way it should and has no weird side effects >.<
 		}
 		return $this; // [2011-09-12 12:33:23] will this work?
@@ -417,6 +416,7 @@ class recobject {
 
 /* -- Log --------------------------------
 
+[2012-07-29 14:55:29] Only run update_object callback in this->hook() if there's record data to run it on
 [2012-01-10 22:25:36] Added ->validation_text property, used in insert/update
 [2011-12-13 17:05:43] Yanked global $messages
 [2011-11-08 21:55:33] Patched hooks->update_object to not re-select but run on already-fetched data ($this->fields). It /seems/ to work, but...
@@ -462,9 +462,7 @@ class recobject {
                       Custom function must accept $data and return $data in get_data(), maybe other method-custom-calls get other requirements.
 [2008-10-11 16:27:27] ->delete() now sets fields to null and $id to false on successful delete, logs on failure.
 
-TODO: ->update() should remove keys from $extra (and $data) that are part of the ->clause; if the user_id is part of clause, this would allow "inserting"
-      records for other users, for example. Check insert() too.
-Todo: The part of hook() that checks the callback could use some is_callable(). <-- useful standard function.
+
 Todo: finish ->set(), clause thing: the override will update the record for anything not in the clause, if there's anything left. But if those keys
       that /are/ in the clause as well have the /same values/, update without the override (and throw a notice or something).
       Also also: check add_clause() doesn't invalidate the current record, if any. Yell loudly if that happens.
