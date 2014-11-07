@@ -4,7 +4,7 @@ class RecObject {
   
   /** -- Functions -----------------------
    * 
-   * __construct($table, $fields, $id=0, $clause=false)   -- Constructor: string $table, array $fields, int $id, array $clause
+   * __construct($db, $table, $fields, $id=0, $clause=false)   -- Constructor: connection $db, string $table, array $fields, int $id, array $clause
    * select()                                             -- Fetches row, sets $this->fields items with update_object(), returns row.
    * set_db($db)                                          -- setter for db connection. Yells and returns false when passing something other than a PDO instance.
    * set_clause($array)                                   -- Adds assoc array (field/value) to use in all queries [2008-02-07 12:14:44]
